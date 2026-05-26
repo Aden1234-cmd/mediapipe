@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaPipe 表情辨識 - 語音反饋應用</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 30px;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 4/3;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            transform: scaleX(-1);
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            transform: scaleX(-1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #e0e0e0;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .info-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .emotion-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .emotion-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #ddd;
+        }
+
+        .emotion-item.active {
+            border-left-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .emotion-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 4px;
+        }
+
+        .emotion-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .feedback-log {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .feedback-item {
+            padding: 8px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #666;
+            border-left: 3px solid #667eea;
+        }
+
+        .feedback-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .status {
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.detecting {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .settings {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .setting-item {
+            margin-bottom: 15px;
+        }
+
+        .setting-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .volume-value {
+            min-width: 40px;
+            text-align: right;
+            font-weight: 600;
+            color: #333;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            button {
+                font-size: 12px;
+                padding: 10px 15px;
+            }
+
+            .emotion-display {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>😊 表情辨識助手</h1>
+            <p>開啟相機，偵測您的表情並獲得語音回饋</p>
+        </div>
+
+        <div id="status" class="status loading">
+            <span class="spinner"></span> 正在載入 MediaPipe...
+        </div>
+
+        <div class="video-container">
+            <video id="video" playsinline></video>
+            <canvas id="canvas" class="canvas-overlay"></canvas>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" class="btn-primary">🎥 開啟相機</button>
+            <button id="stopBtn" class="btn-primary" disabled>⏹️ 關閉相機</button>
+            <button id="clearBtn" class="btn-secondary">🗑️ 清除記錄</button>
+        </div>
+
+        <div class="settings">
+            <div class="setting-item">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="voiceFeedback" checked>
+                    啟用語音反饋
+                </label>
+            </div>
+            <div class="setting-item">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="drawFace" checked>
+                    繪製人臉關鍵點
+                </label>
+            </div>
+            <div class="setting-item">
+                <label class="setting-label">語音速度</label>
+                <div class="volume-control">
+                    <input type="range" id="speechRate" min="0.5" max="2" step="0.1" value="1">
+                    <span class="volume-value"><span id="rateValue">1.0</span>x</span>
+                </div>
+            </div>
+            <div class="setting-item">
+                <label class="setting-label">語言</label>
+                <select id="language" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                    <option value="zh-TW">繁體中文 (台灣)</option>
+                    <option value="zh-CN">簡體中文 (中國)</option>
+                    <option value="en-US">English (US)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">📊 表情偵測</div>
+            <div class="emotion-display" id="emotionDisplay">
+                <div class="emotion-item" id="emoji-neutral">
+                    <div class="emotion-label">中立</div>
+                    <div class="emotion-value">0%</div>
+                </div>
+                <div class="emotion-item" id="emoji-happy">
+                    <div class="emotion-label">開心</div>
+                    <div class="emotion-value">0%</div>
+                </div>
+                <div class="emotion-item" id="emoji-sad">
+                    <div class="emotion-label">傷心</div>
+                    <div class="emotion-value">0%</div>
+                </div>
+                <div class="emotion-item" id="emoji-surprised">
+                    <div class="emotion-label">驚訝</div>
+                    <div class="emotion-value">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">💬 語音反饋記錄</div>
+            <div class="feedback-log" id="feedbackLog">
+                <div class="feedback-item">等待表情偵測...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MediaPipe 庫 -->
+    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+
+    <script src="app.js"></script>
+</body>
+</html>
